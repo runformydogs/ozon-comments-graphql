@@ -37,7 +37,7 @@ func main() {
 		}
 		store = pgStore
 	} else {
-		//store = storage.NewMemoryStorage()
+		store = storage.NewMemoryStorage()
 	}
 
 	resolver := &graph.Resolver{
