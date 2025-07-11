@@ -15,7 +15,8 @@ go run server.go
 ### 2. Локальный запуск с PostgreSQL
 
 ```bash
-DATABASE_URL="postgres://user:password@localhost:5432/dbname?sslmode=disable" go run server.go
+DATABASE_URL="postgres://user:password@localhost:5432/dbname?sslmode=disable" 
+go run server.go
 ```
 
 Требуется поднятый локальный PostgreSQL и указанный URL в переменной окружения `DATABASE_URL`.
