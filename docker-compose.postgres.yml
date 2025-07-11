@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    environment:
+      STORAGE_TYPE: postgres
+      DATABASE_URL: "postgres://postgres:postgres@db:5432/comments?sslmode=disable"
+
+  db:
+    image: postgres:13-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: comments
+    ports:
+      - "5432:5432"

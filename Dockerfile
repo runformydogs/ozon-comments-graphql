@@ -1,22 +1,11 @@
-FROM golang:1.21-alpine AS builder
+FROM golang:1.23-alpine
 
-RUN apk add --no-cache git
+RUN apk add --no-cache git postgresql-client
 
 WORKDIR /app
-
-COPY go.mod go.sum ./
-RUN go mod download
-
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o /ozon-comments-graphql
+RUN go mod download
+RUN CGO_ENABLED=0 GOOS=linux go build -o ozon-comments-graphql
 
-FROM alpine:latest
-
-COPY --from=builder /ozon-comments-graphql /ozon-comments-graphql
-
-COPY .env ./
-
-EXPOSE 8080
-
-CMD ["/ozon-comments-graphql"]
+CMD while ! pg_isready -h db -U postgres; do sleep 2; done && ./ozon-comments-graphql
