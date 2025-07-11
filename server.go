@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/joho/godotenv"
 	"log"
 	"net/http"
 	"os"
@@ -19,6 +20,10 @@ import (
 const defaultPort = "8080"
 
 func main() {
+	if err := godotenv.Load(); err != nil {
+		log.Printf("Warning: .env file not loaded: %v", err)
+	}
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = defaultPort
@@ -32,7 +37,7 @@ func main() {
 		}
 		store = pgStore
 	} else {
-		store = storage.NewMemoryStorage()
+		//store = storage.NewMemoryStorage()
 	}
 
 	resolver := &graph.Resolver{

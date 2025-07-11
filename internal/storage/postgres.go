@@ -163,23 +163,17 @@ func (s *PostgresStorage) CreateComment(ctx context.Context, postID string, pare
 }
 
 func (s *PostgresStorage) ListComments(ctx context.Context, postID string, first int, afterID *string) ([]*models.Comment, *string) {
-	query := `SELECT id, post_id, parent_id, content, created_at 
-              FROM comments 
-              WHERE post_id = $1 `
-
+	query := `SELECT id, post_id, parent_id, content, created_at
+			  FROM comments
+			  WHERE post_id = $1 `
 	params := []interface{}{postID}
-	order := "ORDER BY created_at ASC"
 
 	if afterID != nil {
-		query += " AND created_at > (SELECT created_at FROM comments WHERE id = $2) "
-		params = append(params, *afterID)
-		order = "ORDER BY created_at ASC"
-	}
-
-	query += order + " LIMIT $2"
-	if afterID != nil {
-		params = append(params, first)
+		query += ` AND created_at > (SELECT created_at FROM comments WHERE id = $2) `
+		query += ` ORDER BY created_at ASC LIMIT $3`
+		params = append(params, *afterID, first)
 	} else {
+		query += ` ORDER BY created_at ASC LIMIT $2`
 		params = append(params, first)
 	}
 
