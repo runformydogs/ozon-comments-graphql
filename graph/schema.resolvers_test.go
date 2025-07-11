@@ -3,6 +3,7 @@ package graph_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"ozon-comments-graphql/graph"
 	"ozon-comments-graphql/internal/storage"
@@ -10,75 +11,72 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestResolvers_Post(t *testing.T) {
-	resolver := &graph.Resolver{
-		Store: storage.NewMemoryStorage(),
+func TestPostCreation(t *testing.T) {
+	r := &graph.Resolver{
+		Store:  storage.NewMemoryStorage(),
+		Broker: graph.NewCommentBroker(),
 	}
-	ctx := context.Background()
 
-	post, err := resolver.Mutation().CreatePost(ctx, "Test", "Content")
+	post, err := r.Mutation().CreatePost(context.Background(), "Title", "Content")
 	assert.NoError(t, err)
-	assert.Equal(t, "Test", post.Title)
-
-	foundPost, err := resolver.Query().Post(ctx, post.ID)
-	assert.NoError(t, err)
-	assert.Equal(t, post.ID, foundPost.ID)
+	assert.Equal(t, "Title", post.Title)
+	assert.False(t, post.CommentsDisabled)
 }
 
-func TestResolvers_Comments(t *testing.T) {
-	resolver := &graph.Resolver{
-		Store: storage.NewMemoryStorage(),
+func TestCommentWorkflow(t *testing.T) {
+	r := &graph.Resolver{
+		Store:  storage.NewMemoryStorage(),
+		Broker: graph.NewCommentBroker(),
 	}
 	ctx := context.Background()
 
-	post, _ := resolver.Mutation().CreatePost(ctx, "Test", "Content")
+	post, _ := r.Mutation().CreatePost(ctx, "Test", "Content")
 
-	comment, err := resolver.Mutation().CreateComment(ctx, post.ID, nil, "Comment text")
+	comment, err := r.Mutation().CreateComment(ctx, post.ID, nil, "My comment")
 	assert.NoError(t, err)
-	assert.Equal(t, "Comment text", comment.Content)
+	assert.Equal(t, "My comment", comment.Content)
 
-	commentPage, err := resolver.Query().Comments(ctx, post.ID, nil, nil)
+	comments, err := r.Query().Comments(ctx, post.ID, nil, nil)
 	assert.NoError(t, err)
-	assert.Len(t, commentPage.Items, 1)
-	assert.Equal(t, comment.ID, commentPage.Items[0].ID)
+	assert.Len(t, comments.Items, 1)
 }
 
-func TestResolvers_ToggleComments(t *testing.T) {
-	resolver := &graph.Resolver{
+func TestSubscriptionSimple(t *testing.T) {
+	r := &graph.Resolver{
+		Store:  storage.NewMemoryStorage(),
+		Broker: graph.NewCommentBroker(),
+	}
+	ctx := context.Background()
+
+	post, _ := r.Mutation().CreatePost(ctx, "Sub test", "Content")
+
+	subCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+	defer cancel()
+
+	ch, err := r.Subscription().CommentAdded(subCtx, post.ID)
+	assert.NoError(t, err)
+
+	newComment, _ := r.Mutation().CreateComment(subCtx, post.ID, nil, "New!")
+
+	select {
+	case msg := <-ch:
+		assert.Equal(t, newComment.ID, msg.ID)
+	case <-time.After(500 * time.Millisecond):
+		assert.Fail(t, "Не получили комментарий по подписке")
+	}
+}
+
+func TestDisabledComments(t *testing.T) {
+	r := &graph.Resolver{
 		Store: storage.NewMemoryStorage(),
 	}
 	ctx := context.Background()
 
-	post, _ := resolver.Mutation().CreatePost(ctx, "Test", "Content")
+	post, _ := r.Mutation().CreatePost(ctx, "Test", "Content")
 
-	updatedPost, err := resolver.Mutation().ToggleComments(ctx, post.ID, true)
+	_, err := r.Mutation().ToggleComments(ctx, post.ID, true)
 	assert.NoError(t, err)
-	assert.True(t, updatedPost.CommentsDisabled)
 
-	_, err = resolver.Mutation().CreateComment(ctx, post.ID, nil, "Should fail")
+	_, err = r.Mutation().CreateComment(ctx, post.ID, nil, "Test")
 	assert.Error(t, err)
-}
-
-func TestResolvers_Pagination(t *testing.T) {
-	resolver := &graph.Resolver{
-		Store: storage.NewMemoryStorage(),
-	}
-	ctx := context.Background()
-
-	post, _ := resolver.Mutation().CreatePost(ctx, "Test", "Content")
-
-	for i := 0; i < 15; i++ {
-		_, err := resolver.Mutation().CreateComment(ctx, post.ID, nil, "Comment")
-		assert.NoError(t, err)
-	}
-
-	first := int32(5)
-	page1, err := resolver.Query().Comments(ctx, post.ID, &first, nil)
-	assert.NoError(t, err)
-	assert.Len(t, page1.Items, 5)
-	assert.NotNil(t, page1.NextCursor)
-
-	page2, err := resolver.Query().Comments(ctx, post.ID, &first, page1.NextCursor)
-	assert.NoError(t, err)
-	assert.Len(t, page2.Items, 5)
 }

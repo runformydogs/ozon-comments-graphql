@@ -5,5 +5,6 @@ import (
 )
 
 type Resolver struct {
-	Store storage.Storage
+	Store  storage.Storage
+	Broker *CommentBroker
 }

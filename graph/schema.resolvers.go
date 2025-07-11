@@ -42,18 +42,22 @@ func (r *mutationResolver) ToggleComments(ctx context.Context, postID string, di
 
 // CreateComment is the resolver for the createComment field.
 func (r *mutationResolver) CreateComment(ctx context.Context, postID string, parentID *string, content string) (*model.Comment, error) {
-	p, err := r.Store.CreateComment(ctx, postID, parentID, content)
+	comment, err := r.Store.CreateComment(ctx, postID, parentID, content)
 	if err != nil {
 		return nil, err
 	}
 
-	return &model.Comment{
-		ID:        p.ID,
-		PostID:    p.PostID,
-		ParentID:  p.ParentID,
-		Content:   p.Content,
-		CreatedAt: p.CreatedAt,
-	}, nil
+	modelComment := &model.Comment{
+		ID:        comment.ID,
+		PostID:    comment.PostID,
+		ParentID:  comment.ParentID,
+		Content:   comment.Content,
+		CreatedAt: comment.CreatedAt,
+	}
+
+	r.Broker.Publish(modelComment)
+
+	return modelComment, nil
 }
 
 // Posts is the resolver for the posts field.
@@ -116,11 +120,27 @@ func (r *queryResolver) Comments(ctx context.Context, postID string, first *int3
 	}, nil
 }
 
+// CommentAdded is the resolver for the commentAdded field.
+func (r *subscriptionResolver) CommentAdded(ctx context.Context, postID string) (<-chan *model.Comment, error) {
+	ch := r.Broker.Subscribe(postID)
+
+	go func() {
+		<-ctx.Done()
+		r.Broker.Unsubscribe(postID, ch)
+	}()
+
+	return ch, nil
+}
+
 // Mutation returns MutationResolver implementation.
 func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 
 // Query returns QueryResolver implementation.
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 
+// Subscription returns SubscriptionResolver implementation.
+func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
+
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }

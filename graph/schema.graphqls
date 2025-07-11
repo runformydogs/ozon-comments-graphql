@@ -21,6 +21,10 @@ type CommentPage {
   nextCursor: String
 }
 
+type Subscription {
+  commentAdded(postID: ID!): Comment!
+}
+
 type Query {
   posts: [Post!]!
   post(id: ID!): Post
